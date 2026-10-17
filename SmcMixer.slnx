@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="SmcMixer.App/SmcMixer.App.csproj" />
+  <Project Path="SmcMixer.Core/SmcMixer.Core.csproj" />
+  <Project Path="SmcMixer/SmcMixer.csproj" />
+</Solution>
