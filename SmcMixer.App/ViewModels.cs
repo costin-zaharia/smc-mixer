@@ -1,10 +1,11 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
 using System.Windows.Threading;
 using SmcMixer.Core;
+using SmcMixer.Windows;
 
 namespace SmcMixer.App;
 
@@ -168,7 +169,7 @@ public sealed class MixerVm : ViewModelBase, IDisposable
         Mixer mixer;
         try
         {
-            mixer = new Mixer();
+            mixer = new Mixer(new WindowsMidiBackend());
         }
         catch (Exception ex)
         {

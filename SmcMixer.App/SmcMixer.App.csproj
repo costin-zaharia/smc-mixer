@@ -2,11 +2,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SmcMixer.Core\SmcMixer.Core.csproj" />
+    <ProjectReference Include="..\SmcMixer.Windows\SmcMixer.Windows.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net9.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>

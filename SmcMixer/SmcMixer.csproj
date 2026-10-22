@@ -2,13 +2,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SmcMixer.Core\SmcMixer.Core.csproj" />
+    <ProjectReference Include="..\SmcMixer.Linux\SmcMixer.Linux.csproj" />
+    <ProjectReference Include="..\SmcMixer.Windows\SmcMixer.Windows.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net9.0-windows</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
   </PropertyGroup>
 
 </Project>

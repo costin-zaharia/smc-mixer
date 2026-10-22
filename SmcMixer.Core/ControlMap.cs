@@ -1,5 +1,3 @@
-using NAudio.Midi;
-
 namespace SmcMixer.Core;
 
 public enum ControlKind { Fader, Knob, Button }
@@ -61,23 +59,24 @@ public sealed class ControlMap
 
     private void Add(ControlInfo info) => _buttons[info.Note!.Value] = info;
 
-    public ControlEvent? Decode(MidiEvent ev)
+    public ControlEvent? Decode(MidiMessage m)
     {
-        switch (ev)
+        switch (m.Command)
         {
-            case PitchWheelChangeEvent p when p.Channel is >= 1 and <= 8:
-                return new(new(ControlKind.Fader, p.Channel, $"Fader {p.Channel}"), p.Pitch, Math.Min(p.Pitch / FaderMax, 1.0));
+            case MidiCommand.PitchBend when m.Channel <= 8:
+                int pitch = m.PitchBend;
+                return new(new(ControlKind.Fader, m.Channel, $"Fader {m.Channel}"), pitch, Math.Min(pitch / FaderMax, 1.0));
 
-            case ControlChangeEvent cc when (int)cc.Controller is >= 16 and <= 23:
+            case MidiCommand.ControlChange when m.Data1 is >= 16 and <= 23:
                 // Relative: 1..63 is clockwise ticks, 65..127 is counter-clockwise (value - 64) ticks.
-                int index = (int)cc.Controller - 15;
-                int ticks = cc.ControllerValue < 64 ? cc.ControllerValue : -(cc.ControllerValue - 64);
-                return new(new(ControlKind.Knob, index, $"Knob {index}"), cc.ControllerValue, ticks);
+                int index = m.Data1 - 15;
+                int ticks = m.Data2 < 64 ? m.Data2 : -(m.Data2 - 64);
+                return new(new(ControlKind.Knob, index, $"Knob {index}"), m.Data2, ticks);
 
-            case NoteEvent n when _buttons.TryGetValue(n.NoteNumber, out var button):
+            case MidiCommand.NoteOn or MidiCommand.NoteOff when _buttons.TryGetValue(m.Data1, out var button):
                 // Releases arrive as Note On with velocity 0, or as Note Off.
-                bool pressed = n.CommandCode == MidiCommandCode.NoteOn && n.Velocity > 0;
-                return new(button, n.Velocity, pressed ? 1 : 0);
+                bool pressed = m.Command == MidiCommand.NoteOn && m.Data2 > 0;
+                return new(button, m.Data2, pressed ? 1 : 0);
 
             default:
                 return null;

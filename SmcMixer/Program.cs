@@ -1,19 +1,25 @@
-﻿using NAudio.Midi;
 using SmcMixer.Core;
+
+var backend = MidiBackends.Create();
 
 if (args.Length >= 2 && args[0] == "led")
 {
-    LedProbe.Run(args[1..]);
+    LedProbe.Run(backend, args[1..]);
     return;
 }
 
-// Optional first argument: MIDI input index. Otherwise the mixer is auto-detected.
-int? inputIndex = args.Length > 0 && int.TryParse(args[0], out var a) ? a : null;
+Console.WriteLine("MIDI inputs:");
+var inputs = backend.GetInputs();
+for (int i = 0; i < inputs.Count; i++)
+    Console.WriteLine($"  [{i}] {inputs[i].Name}");
+
+// Optional first argument: MIDI input index (from the list above). Otherwise the mixer is auto-detected.
+MidiPortInfo? input = args.Length > 0 && int.TryParse(args[0], out var a) && a >= 0 && a < inputs.Count ? inputs[a] : null;
 
 Mixer mixer;
 try
 {
-    mixer = new Mixer(inputIndex);
+    mixer = new Mixer(backend, input);
 }
 catch (InvalidOperationException ex)
 {
@@ -41,7 +47,7 @@ using (mixer)
             mixer.SetLed(button, on);
         }
     };
-    mixer.UnmappedMessage += (_, ev) => Console.WriteLine($"{DateTime.Now:HH:mm:ss.fff}  {DescribeRaw(ev)}  (unmapped)");
+    mixer.UnmappedMessage += (_, m) => Console.WriteLine($"{DateTime.Now:HH:mm:ss.fff}  {m}  (unmapped)");
 
     mixer.Start();
     Console.ReadLine();
@@ -54,14 +60,4 @@ static string Describe(ControlEvent c) => c.Control.Kind switch
     ControlKind.Button => $"{c.Control.Name,-10} {(c.Value > 0 ? "pressed" : "released")}",
     ControlKind.Knob => $"{c.Control.Name,-10} {c.Value:+0;-0}",
     _ => $"{c.Control.Name,-10} {c.Value,5:P0}  (raw {c.RawValue})",
-};
-
-static string DescribeRaw(MidiEvent ev) => ev switch
-{
-    ControlChangeEvent cc => $"CC    ch{cc.Channel,-2} controller={(int)cc.Controller,-3} value={cc.ControllerValue}",
-    NoteOnEvent n => $"NoteOn  ch{n.Channel,-2} note={n.NoteNumber,-3} velocity={n.Velocity}",
-    NoteEvent n => $"{n.CommandCode,-6} ch{n.Channel,-2} note={n.NoteNumber,-3} velocity={n.Velocity}",
-    PitchWheelChangeEvent p => $"Pitch ch{p.Channel,-2} value={p.Pitch}",
-    PatchChangeEvent p => $"Prog  ch{p.Channel,-2} patch={p.Patch}",
-    _ => $"{ev.CommandCode} ch{ev.Channel} raw=0x{ev.GetAsShortMessage():X8}",
 };

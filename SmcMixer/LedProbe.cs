@@ -1,34 +1,34 @@
-using NAudio.Midi;
 using SmcMixer.Core;
 
 /// <summary>Developer tool for exploring the mixer's LED protocol: sends Note On messages straight to its output port.</summary>
 static class LedProbe
 {
     // led <note> <velocity|sweep|scan[:velocity]|repl> [channel] [outputIndex]
-    public static void Run(string[] a)
+    public static void Run(IMidiBackend backend, string[] a)
     {
         int note = int.Parse(a[0]);
         string what = a.Length > 1 ? a[1] : "127";
         int channel = a.Length > 2 ? int.Parse(a[2]) : 1;
 
         Console.WriteLine("MIDI output devices:");
-        for (int i = 0; i < MidiOut.NumberOfDevices; i++)
-            Console.WriteLine($"  [{i}] {MidiOut.DeviceInfo(i).ProductName}");
+        var outputs = backend.GetOutputs();
+        for (int i = 0; i < outputs.Count; i++)
+            Console.WriteLine($"  [{i}] {outputs[i].Name}");
 
-        int index = a.Length > 3 ? int.Parse(a[3]) : Mixer.FindOutput() ?? 0;
+        var port = a.Length > 3 ? outputs[int.Parse(a[3])] : Mixer.FindOutput(backend) ?? outputs[0];
 
-        using var midiOut = new MidiOut(index);
-        Console.WriteLine($"Sending to [{index}] {MidiOut.DeviceInfo(index).ProductName}, note {note}, channel {channel}");
+        using var midiOut = backend.OpenOutput(port);
+        Console.WriteLine($"Sending to {port.Name}, note {note}, channel {channel}");
 
         if (what == "sweep")
         {
             for (int v = 0; v <= 127; v++)
             {
                 Console.WriteLine($"velocity {v}");
-                midiOut.Send(MidiMessage.StartNote(note, v, channel).RawData);
+                midiOut.Send(MidiMessage.NoteOn(note, v, channel).ToBytes());
                 Thread.Sleep(300);
             }
-            midiOut.Send(MidiMessage.StartNote(note, 0, channel).RawData);
+            midiOut.Send(MidiMessage.NoteOn(note, 0, channel).ToBytes());
         }
         else if (what.StartsWith("scan"))
         {
@@ -37,9 +37,9 @@ static class LedProbe
             for (int n = note; n <= 127; n++)
             {
                 Console.WriteLine($"note {n} velocity {velocity}");
-                midiOut.Send(MidiMessage.StartNote(n, velocity, channel).RawData);
+                midiOut.Send(MidiMessage.NoteOn(n, velocity, channel).ToBytes());
                 Thread.Sleep(700);
-                midiOut.Send(MidiMessage.StartNote(n, 0, channel).RawData);
+                midiOut.Send(MidiMessage.NoteOn(n, 0, channel).ToBytes());
             }
             return;
         }
@@ -53,14 +53,14 @@ static class LedProbe
                 var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length == 2) note = int.Parse(parts[0]);
                 int velocity = int.Parse(parts[^1]);
-                midiOut.Send(MidiMessage.StartNote(note, velocity, channel).RawData);
+                midiOut.Send(MidiMessage.NoteOn(note, velocity, channel).ToBytes());
                 Console.WriteLine($"  note {note} velocity {velocity}");
             }
             return;
         }
         else
         {
-            midiOut.Send(MidiMessage.StartNote(note, int.Parse(what), channel).RawData);
+            midiOut.Send(MidiMessage.NoteOn(note, int.Parse(what), channel).ToBytes());
         }
 
         // Closing the port resets it (which can switch the LED straight back off), so keep it open until told otherwise.

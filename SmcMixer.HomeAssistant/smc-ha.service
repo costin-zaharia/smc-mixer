@@ -1,0 +1,13 @@
+[Unit]
+Description=SMC-Mixer to Home Assistant bridge
+After=network-online.target
+
+[Service]
+# The worker waits for the mixer to connect, so it can start before Bluetooth is ready.
+ExecStart=/usr/bin/dotnet %h/smc-ha/SmcMixer.HomeAssistant.dll
+WorkingDirectory=%h/smc-ha
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

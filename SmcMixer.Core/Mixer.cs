@@ -1,14 +1,12 @@
-using NAudio.Midi;
-
 namespace SmcMixer.Core;
 
 /// <summary>
 /// The M-VAVE SMC-Mixer (in DAW mode): raises events for faders, knobs and buttons, and switches button LEDs.
-/// Events are raised on the MIDI driver's callback thread, so marshal to the UI thread before touching UI.
+/// Events are raised on the MIDI backend's callback thread, so marshal to the UI thread before touching UI.
 /// </summary>
 public sealed class Mixer : IDisposable
 {
-    private readonly MidiIn _in;
+    private readonly IMidiInput _in;
     private readonly LedController? _leds;
     private readonly ControlMap _map = new();
     private bool _started;
@@ -17,7 +15,7 @@ public sealed class Mixer : IDisposable
     public event EventHandler<ControlEvent>? ControlChanged;
 
     /// <summary>Raised for messages the map doesn't recognize, e.g. to discover new controls.</summary>
-    public event EventHandler<MidiEvent>? UnmappedMessage;
+    public event EventHandler<MidiMessage>? UnmappedMessage;
 
     /// <summary>All buttons, keyed by the note they send. Names: "Mute 1".."Mute 8", "Solo n", "Rec n", "Select n", "Play", ...</summary>
     public IReadOnlyDictionary<int, ControlInfo> Buttons => _map.Buttons;
@@ -25,19 +23,28 @@ public sealed class Mixer : IDisposable
     public string InputName { get; }
     public string? OutputName { get; }
 
-    /// <summary>Opens the mixer, auto-detecting its MIDI ports unless indexes are given. Call <see cref="Start"/> to receive events.</summary>
-    public Mixer(int? inputIndex = null, int? outputIndex = null)
+    /// <summary>
+    /// Opens the mixer through <paramref name="backend"/>, auto-detecting its MIDI ports unless given. Call <see cref="Start"/> to receive events.
+    /// </summary>
+    public Mixer(IMidiBackend backend, MidiPortInfo? input = null, MidiPortInfo? output = null)
     {
-        int input = inputIndex ?? FindInput() ?? throw new InvalidOperationException("No SMC-Mixer MIDI input found. Is it connected?");
-        _in = new MidiIn(input);
-        InputName = MidiIn.DeviceInfo(input).ProductName;
+        input ??= FindInput(backend) ?? throw new InvalidOperationException("No SMC-Mixer MIDI input found. Is it connected?");
+        _in = backend.OpenInput(input);
+        InputName = input.Name;
         _in.MessageReceived += OnMessage;
 
         // LEDs are optional: input still works if the output port can't be opened.
-        if ((outputIndex ?? FindOutput()) is { } output)
+        if ((output ?? FindOutput(backend)) is { } port)
         {
-            _leds = new LedController(output);
-            OutputName = MidiOut.DeviceInfo(output).ProductName;
+            try
+            {
+                _leds = new LedController(backend.OpenOutput(port));
+                OutputName = port.Name;
+            }
+            catch (Exception)
+            {
+                // Some setups (e.g. Bluetooth, which has a single port) offer no usable output.
+            }
         }
     }
 
@@ -58,33 +65,26 @@ public sealed class Mixer : IDisposable
     public void SetAllMuteLeds(bool on) => _leds?.SetAllMute(on);
 
     /// <summary>First MIDI input that looks like the mixer, or null.</summary>
-    public static int? FindInput()
-    {
-        for (int i = 0; i < MidiIn.NumberOfDevices; i++)
-            if (IsMixer(MidiIn.DeviceInfo(i).ProductName)) return i;
-        return null;
-    }
+    public static MidiPortInfo? FindInput(IMidiBackend backend) =>
+        backend.GetInputs().FirstOrDefault(p => IsMixer(p.Name));
 
     /// <summary>
-    /// The mixer exposes two output ports; the LEDs answer on the last matching one ("MIDIOUT2 (SMC-Mixer)"). Null if none.
+    /// The mixer exposes two output ports on USB; the LEDs answer on the last matching one ("MIDIOUT2 (SMC-Mixer)"). Null if none.
     /// </summary>
-    public static int? FindOutput()
-    {
-        int? found = null;
-        for (int i = 0; i < MidiOut.NumberOfDevices; i++)
-            if (IsMixer(MidiOut.DeviceInfo(i).ProductName)) found = i;
-        return found;
-    }
+    public static MidiPortInfo? FindOutput(IMidiBackend backend) =>
+        backend.GetOutputs().LastOrDefault(p => IsMixer(p.Name));
 
     private static bool IsMixer(string name) =>
         name.Contains("SMC", StringComparison.OrdinalIgnoreCase) || name.Contains("VAVE", StringComparison.OrdinalIgnoreCase);
 
-    private void OnMessage(object? sender, MidiInMessageEventArgs e)
+    private void OnMessage(byte[] data)
     {
-        if (_map.Decode(e.MidiEvent) is { } control)
+        if (!MidiMessage.TryParse(data, out var message)) return;
+
+        if (_map.Decode(message) is { } control)
             ControlChanged?.Invoke(this, control);
         else
-            UnmappedMessage?.Invoke(this, e.MidiEvent);
+            UnmappedMessage?.Invoke(this, message);
     }
 
     public void Dispose()

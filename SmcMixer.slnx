@@ -1,5 +1,10 @@
 <Solution>
   <Project Path="SmcMixer.App/SmcMixer.App.csproj" />
+  <Project Path="SmcMixer.Core.Tests/SmcMixer.Core.Tests.csproj" />
   <Project Path="SmcMixer.Core/SmcMixer.Core.csproj" />
+  <Project Path="SmcMixer.HomeAssistant.Tests/SmcMixer.HomeAssistant.Tests.csproj" />
+  <Project Path="SmcMixer.HomeAssistant/SmcMixer.HomeAssistant.csproj" />
+  <Project Path="SmcMixer.Linux/SmcMixer.Linux.csproj" />
+  <Project Path="SmcMixer.Windows/SmcMixer.Windows.csproj" />
   <Project Path="SmcMixer/SmcMixer.csproj" />
 </Solution>
